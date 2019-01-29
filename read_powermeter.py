@@ -11,7 +11,7 @@ MAX_EXPECTED_AMPS = 2.0
 ina = INA219(SHUNT_OHMS, MAX_EXPECTED_AMPS)
 ina.configure(ina.RANGE_16V)
 
-BUFFER_SIZE = 1000
+BUFFER_SIZE = 500
 SAMPLE_INTERVAL = 0.01
 
 def collect_data(buf,ina,buf_index):
@@ -26,7 +26,7 @@ def send_data(buf):
         for b in buf:
             data_time = str(int(b[0]*1e9))
             data_value = str(b[1])
-            data_chunk += "\nPSVirPower, type=PSVirPower value=%s %s" % (data_value, data_time)
+            data_chunk += "PSVirPower,type=PSVirPower value=%s %s\n" % (data_value, data_time)
         url = "http://localhost:8086/write?db=energy_meter"
         http_post = "curl -i -XPOST \'%s\' --data-binary \'%s\'" % (url, data_chunk)
         subprocess.call(http_post, shell=True)
