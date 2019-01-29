@@ -27,7 +27,7 @@ def send_data(buf):
             data_time = str(int(b[0]*1e9))
             data_value = str(b[1])
             data_chunk += "\nPSVirPower, type=PSVirPower value=%s %s" % (data_value, data_time)
-        url = "http://localhost:8086/write?db=em_collectd"
+        url = "http://localhost:8086/write?db=energy_meter"
         http_post = "curl -i -XPOST \'%s\' --data-binary \'%s\'" % (url, data_chunk)
         subprocess.call(http_post, shell=True)
     except DeviceRangeError as e:
