@@ -14,6 +14,8 @@ ina.configure(ina.RANGE_16V)
 BUFFER_SIZE = 500
 SAMPLE_INTERVAL = 0.01
 
+IP = '172.23.162.229'
+
 def collect_data(buf,ina,buf_index):
     power = ina.power()
     buf[buf_index] = [time.time(), power/1000]
@@ -26,8 +28,8 @@ def send_data(buf):
         for b in buf:
             data_time = str(int(b[0]*1e9))
             data_value = str(b[1])
-            data_chunk += "PSVirPower,type=PSVirPower value=%s %s\n" % (data_value, data_time)
-        url = "http://localhost:8086/write?db=energy_meter"
+            data_chunk += "Power,type=power value=%s %s\n" % (data_value, data_time)
+        url = "http://%s:8086/write?db=power" % (IP)
         http_post = "curl -i -XPOST \'%s\' --data-binary \'%s\'" % (url, data_chunk)
         subprocess.call(http_post, shell=True)
     except DeviceRangeError as e:
