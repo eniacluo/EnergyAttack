@@ -16,7 +16,7 @@ SAMPLE_INTERVAL = 0.01
 
 def collect_data(buf,ina,buf_index):
     power = ina.power()
-    buf[buf_index] = [time.time(), power]
+    buf[buf_index] = [time.time(), power/1000]
     buf_index += 1
     return [buf, buf_index]
 
