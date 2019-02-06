@@ -1,16 +1,16 @@
-if [ $1 = '-n' ]    # specify one device
+if [ $# -lt 2 ]
 then
-    group=$2
-    cmd="${@:3}"
-else                # specify a file contains a group
+    echo "Usage: ssh_pi.sh <Group file> <cmd>"
+    exit 1
+fi
+
+if [ ! -e $1 ]    # if specified a group file name
+then 
+    echo "There is not Group file named $1!"
+    exit 2
+else
     cmd="${@:2}"
-    if [ ! -e $1 ]    # if specified a group file name
-    then 
-        echo "There is not Group file named $1!"
-        exit 1
-    else
-        group=$(cat $1)
-    fi
+    group=$(cat $1)
 fi
 
 for i in $group
