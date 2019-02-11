@@ -8,13 +8,16 @@ import json
 DEBUG_ITERATION_VALUE   = False
 DEBUG_RECV_PACKAGE      = True
 DEBUG_NEIGHBOR_INFO     = True
+DEBUG_CONTROL_ENABLE    = True
 
 UDP_PORT        = 5011
+UDP_CMD_PORT    = 5012
 BCAST_ADDR      = '10.0.0.255'
-CONTROL_ADDR    = '10.0.0.254'
+CONTROL_ADDR    = '172.16.0.254'
 BIND_ADDR       = '0.0.0.0'
 
 VECTOR_SIZE     = 100 
+BUFFER_SIZE     = 1024
 
 CMD_TERMINATE   = 1
 CMD_START       = 2
@@ -40,12 +43,12 @@ def recv_UDP():
                 print "Received a package from %s and len = %d." %(str(recvfrom_addr), len(recv_buffer))
             data_ready = 1
         except NameError:
-            print 'the sock is broken.'
+            print 'the sock is broken when recv.'
             break
         except socket.error as error:
             if error.errno != socket.errno.EAGAIN:
                 # data not available
-                print 'the sock error.'
+                print 'the sock error. %s' % str(error)
                 break
 
 def send_UDP():
@@ -87,15 +90,11 @@ def parse_buffer(data_buffer, addr):
     data_dict = json.loads(data_buffer)
     if type(data_dict) == dict:
         try:
-            if data_dict['iter'] == 0:
-                print "iter = %d, cmd received." % data_dict['iter']
-                if addr == CONTROL_ADDR:
-                    return data_dict['cmd']
-                else:
-                    print "received cmd from unknown person and dropped."
-            else:
+            if data_dict['iter'] != 0:
                 data_dict['addr'] = addr
                 dist_avg(data_dict)
+            else:
+                print "iter = %d received." % data_dict['iter']
         except Exception as error:
             print str(error)
             print 'an unknown format package from %s and length = %s' % (str(addr), len(str(data_buffer)))
@@ -103,16 +102,64 @@ def parse_buffer(data_buffer, addr):
         print 'a broken packege received from %s and length = %s' % (str(addr), len(str(data_buffer)))
     return 0
 
+def recv_cmd():
+    while True:
+        try:
+            global sock_cmd
+            global stop_sign
+            global cmd_ready
+            global cmd
+            if stop_sign == 1:
+                break
+            cmd_buffer, cmd_addr = sock_cmd.recvfrom(BUFFER_SIZE)
+            if cmd_addr[0] == CONTROL_ADDR:
+                try:
+                    cmd_dict = json.loads(cmd_buffer)
+                    if type(cmd_dict) == dict:
+                        print 'cmd: %d' % cmd_dict['cmd']
+                        cmd = cmd_dict['cmd']
+                        cmd_ready = 1
+                    else:
+                        print 'a broken packege received from %s and length = %s' % (str(cmd_addr), len(str(cmd_buffer)))
+                except Exception as error:
+                    print str(error)
+                    print 'an unknown format package from %s and length = %s' % (str(cmd_addr), len(str(cmd_buffer)))
+            else:
+                print 'an package from unknown address %s and length = %s' % (str(cmd_addr), len(str(cmd_buffer)))
+            if DEBUG_RECV_PACKAGE:
+                print "Received a package from %s and len = %d." %(str(cmd_addr), len(cmd_buffer))
+        except NameError as error:
+            print 'the sock is broken. %s' % str(error)
+            break
+        except socket.error as error:
+            if error.errno != socket.errno.EAGAIN:
+                # data not available
+                print 'the sock error. %s' % str(error)
+                break
+
+
 if __name__ == '__main__':
+    # sock for data exchange
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     sock.setblocking(0)
     try:
         sock.bind((BIND_ADDR, UDP_PORT))
-    except:
-        print 'bind failed.'
+    except Exception as error:
+        print 'sock bind failed. %s' % str(error)
         sys.exit()
+    
+    if DEBUG_CONTROL_ENABLE == True:
+        sock_cmd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock_cmd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock_cmd.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock_cmd.setblocking(0)
+        try:
+            sock_cmd.bind((BIND_ADDR, UDP_CMD_PORT))
+        except Exception as error:
+            print 'sock_cmd bind failed. %s' % str(error)
+            sys.exit()
     
     stop_sign = 0 # for controlling the socket threads
     data_ready = 0
@@ -123,7 +170,13 @@ if __name__ == '__main__':
     
     send_thread = threading.Thread(target=send_UDP)
     send_thread.start()
-    
+   
+    if DEBUG_CONTROL_ENABLE == True:
+        cmd_ready = 0
+        cmd = 0
+        recv_cmd_thread = threading.Thread(target=recv_cmd)
+        recv_cmd_thread.start()
+
     start_time = time.time()
     
     recv_buffer = 'Nothing received'
@@ -133,23 +186,31 @@ if __name__ == '__main__':
     local_value = np.array([0.0] * VECTOR_SIZE)
     
     while True:
-        if time.time() - start_time > TESTING_TIME_LENGTH:
+        if time.time() - start_time > TESTING_TIME_LENGTH or stop_sign == 1:
             stop_sign = 1 # let the socket threads stop
             try:
                 sock.close()
+                if DEBUG_CONTROL_ENABLE == True:
+                    sock_cmd.close()
             except socket.error, msg:
                 print "socket close failed."
             if recv_thread.is_alive:
                 recv_thread.join()
             if send_thread.is_alive:
                 send_thread.join()
+            if DEBUG_CONTROL_ENABLE == True:
+                if recv_cmd_thread.is_alive:
+                    recv_cmd_thread.join()
             break
         else:
             if data_ready == 1:
                 # print 'The packet received is: ' + recv_buffer + ' from ' + str(recvfrom_addr)
-                cmd = parse_buffer(recv_buffer, str(recvfrom_addr[0]))
+                parse_buffer(recv_buffer, str(recvfrom_addr[0]))
+                data_ready = 0
+            if cmd_ready == 1:
                 if cmd == CMD_TERMINATE:
                     stop_sign = 1
                 else:
                     pass
-                data_ready = 0
+                cmd_ready = 0
+
