@@ -6,7 +6,6 @@ import socket
 import json
 import datetime
 from multiprocessing import Pool
-from multiprocessing import Process
 
 class FSM:
 	num_status = 1
@@ -105,10 +104,7 @@ class FSM:
 			if print_status == True:
 				print('%8.3f [step %2d] Status = %d: %s' % (time.time()-time_start, step, status, str(self.status_func[status])))
 			if self.status_func[status]:
-				p = Process(target=self.status_func[status])
-				p.start()
-				p.join()
-				#self.status_func[status]()
+				self.status_func[status]()
 			# Choose next status
 			random_cusum = random.random()
 			for i in range(self.num_status):
@@ -162,16 +158,14 @@ def write_large_array():
 				array_in.append(random.random())
 			array.append(array_in)
 
-
-# Network Tx Rx
 def loopback_transferring():
 	port = 13411
 	socket_loopback = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	socket_loopback.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 	socket_loopback.bind(('', port))
-	for i in range(10000):
+	for i in range(5000):
 		try:
-			socket_loopback.sendto(json.dumps([random.random()]*100).encode('utf-8'), ('127.0.0.1', port))
+			socket_loopback.sendto(json.dumps([random.random()]*1000).encode('utf-8'), ('127.0.0.1', port))
 			recv_data, recv_addr = socket_loopback.recvfrom(100000)
 		except Exception as e:
 			print('send data failed.')
